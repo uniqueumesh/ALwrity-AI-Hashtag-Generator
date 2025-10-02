@@ -31,8 +31,8 @@ def inject_styles() -> None:
   background: linear-gradient(180deg, rgba(17,24,39,0.9), rgba(17,24,39,0.7));
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
   border-radius: 18px;
-  padding: 2rem;
-  max-width: 900px;
+  padding: 1rem;
+  max-width: 700px;
   margin: 0 auto;
 }
 
@@ -115,22 +115,8 @@ textarea {
 
 def render_app_title() -> None:
     """Render the main application title and description."""
-    st.markdown("""
-    <div style="text-align: center; margin-bottom: 2rem;">
-        <h1 style="
-            font-size: 2.5rem; 
-            font-weight: 800; 
-            background: linear-gradient(135deg, #8b5cf6, #06b6d4);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            margin-bottom: 0.5rem;
-        ">🔖 AI Hashtag Generator</h1>
-        <p style="color: #94a3b8; font-size: 1.1rem; margin: 0;">
-            Create perfect hashtags for your social media posts in seconds
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Title and description removed to make UI more compact
+    pass
 
 
 def render_main_container_start() -> None:
@@ -144,90 +130,14 @@ def render_main_container_end() -> None:
 
 
 def render_wizard_progress(current_step: int, total_steps: int, step_titles: List[str]) -> None:
-    """Render wizard-style progress bar with step titles."""
-    progress_percentage = ((current_step - 1) / (total_steps - 1)) * 100 if total_steps > 1 else 100
-    
+    """Render minimal wizard progress indicator."""
+    # Minimal progress indicator - just show step dots
     st.markdown(f"""
-    <div class="wizard-progress">
-        <div class="progress-header">
-            <h3 class="step-title">
-                <span class="step-number">Step {current_step} of {total_steps}</span>
-                <span class="step-name">{step_titles[current_step - 1] if current_step <= len(step_titles) else ''}</span>
-            </h3>
-        </div>
-        <div class="progress-bar-container">
-            <div class="progress-bar" style="width: {progress_percentage}%"></div>
-        </div>
-        <div class="step-indicators">
-            {''.join([f'<div class="step-dot {"completed" if i < current_step else "current" if i == current_step else "pending"}"></div>' for i in range(1, total_steps + 1)])}
+    <div style="text-align: center; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: center; gap: 8px; align-items: center;">
+            {''.join([f'<div style="width: 8px; height: 8px; border-radius: 50%; background: {"#7c3aed" if i <= current_step else "rgba(124,58,237,0.3)"};"></div>' for i in range(1, total_steps + 1)])}
         </div>
     </div>
-    <style>
-    .wizard-progress {{
-        margin-bottom: 2rem;
-        padding: 1.5rem;
-        background: rgba(30,41,59,0.3);
-        border-radius: 12px;
-        border: 1px solid rgba(124,58,237,0.2);
-    }}
-    .progress-header {{
-        margin-bottom: 1rem;
-    }}
-    .step-title {{
-        margin: 0;
-        color: #f1f5f9;
-        font-size: 1.4rem;
-        font-weight: 700;
-    }}
-    .step-number {{
-        color: #94a3b8;
-        font-size: 1rem;
-        font-weight: 500;
-        display: block;
-        margin-bottom: 0.25rem;
-    }}
-    .step-name {{
-        color: #7c3aed;
-        font-size: 1.4rem;
-    }}
-    .progress-bar-container {{
-        width: 100%;
-        height: 6px;
-        background: rgba(15,23,42,0.6);
-        border-radius: 3px;
-        margin-bottom: 1rem;
-        overflow: hidden;
-    }}
-    .progress-bar {{
-        height: 100%;
-        background: linear-gradient(90deg, #7c3aed, #4f46e5);
-        border-radius: 3px;
-        transition: width 0.3s ease;
-    }}
-    .step-indicators {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }}
-    .step-dot {{
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        transition: all 0.3s ease;
-    }}
-    .step-dot.completed {{
-        background: #10b981;
-        box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
-    }}
-    .step-dot.current {{
-        background: #7c3aed;
-        box-shadow: 0 0 0 3px rgba(124,58,237,0.3);
-    }}
-    .step-dot.pending {{
-        background: rgba(124,58,237,0.2);
-        border: 2px solid rgba(124,58,237,0.4);
-    }}
-    </style>
     """, unsafe_allow_html=True)
 
 
@@ -364,8 +274,6 @@ def render_copy_button(text_to_copy: str) -> None:
 
 def render_wizard_step_1() -> None:
     """Render Step 1: Content Input"""
-    st.markdown("### 📝 What do you want hashtags for?")
-    st.markdown("Choose how you want to provide your content - either type keywords directly or paste a website URL to extract content automatically.")
     
     # Input method selection
     input_method = st.radio(
