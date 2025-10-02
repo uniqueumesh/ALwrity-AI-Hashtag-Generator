@@ -215,6 +215,17 @@ div.stButton > button:first-child {{
   border-radius: 12px;
   color: #e5e7eb;
 }}
+textarea {{
+  background: rgba(17,24,39,0.65);
+  border: 1px solid rgba(124,58,237,0.35);
+  border-radius: 12px;
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  padding: 10px 12px;
+}}
 </style>
         """,
         unsafe_allow_html=True,
@@ -255,26 +266,31 @@ def main() -> None:
 
                 if tags:
                     st.session_state.generated_hashtags = tags  # type: ignore[attr-defined]
+                    # Update editable text content to latest generation
+                    st.session_state["hashtags_text"] = " ".join(tags)
                 else:
                     st.info("No hashtags returned. Try a different seed.")
 
         # Results area persists until next generation
         tags: List[str] = st.session_state.get("generated_hashtags", [])  # type: ignore[attr-defined]
         if tags:
-            # Display as chips
-            chips_html = "<div class='alw-tags'>" + "".join(
-                f"<span class='alw-tag'>{t}</span>" for t in tags
-            ) + "</div>"
-            st.markdown(chips_html, unsafe_allow_html=True)
-
-            # Provide a single-line, space-separated version (also useful for copy)
+            # Provide a single-line, space-separated version
             one_line = " ".join(tags)
 
-            # Code block comes with a built-in copy icon in Streamlit
-            st.code(one_line, language="text")
+            # Use session value when present, so user edits persist
+            current_text = st.session_state.get("hashtags_text", one_line)
 
-            # Dedicated copy button (JS clipboard)
-            render_copy_button(one_line)
+            # Single variant: editable text area for readability and tweaks
+            st.text_area(
+                "",
+                value=current_text,
+                key="hashtags_text",
+                height=96,
+                label_visibility="collapsed",
+            )
+
+            # Dedicated copy button (copies current edited text)
+            render_copy_button(st.session_state.get("hashtags_text", one_line))
 
         st.markdown("</div>", unsafe_allow_html=True)  # close .alw-card
 
