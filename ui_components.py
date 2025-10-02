@@ -1,19 +1,330 @@
 """
 UI components and styling for ALwrity AI Hashtag Generator.
-Contains reusable UI functions and CSS styling.
+Contains reusable UI functions and CSS styling for the wizard interface.
 """
 
 import streamlit as st
 import streamlit.components.v1 as components
+from typing import List, Tuple
+
+# Import functions needed for wizard steps
+from content_extractor import extract_content_from_url
+from hashtag_generator import get_enhanced_prompt, adjust_count_for_platform, generate_hashtags
+from config import PLATFORM_CONFIG
+
+
+def inject_styles() -> None:
+    """Inject custom CSS styles for the wizard application."""
+    st.markdown(
+        """
+<style>
+/* Page background */
+.stApp {
+  background: radial-gradient(1200px 600px at 10% -20%, rgba(124,58,237,0.15), transparent 40%),
+              radial-gradient(1000px 500px at 110% 10%, rgba(79,70,229,0.15), transparent 40%),
+              linear-gradient(180deg, #0b0f19 0%, #0b0f19 100%);
+}
+
+/* Main card container */
+.alw-card {
+  border: 1px solid rgba(124,58,237,0.3);
+  background: linear-gradient(180deg, rgba(17,24,39,0.9), rgba(17,24,39,0.7));
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  border-radius: 18px;
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Enhanced buttons */
+div.stButton > button:first-child {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+  color: white !important;
+  border: none !important;
+  padding: 1rem 2rem !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  font-size: 1.1rem !important;
+  box-shadow: 0 4px 15px rgba(124,58,237,0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+div.stButton > button:first-child:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(124,58,237,0.4) !important;
+}
+
+/* Input styling */
+.stTextInput > div > div > input {
+  background: rgba(15,23,42,0.8) !important;
+  border: 1px solid rgba(124,58,237,0.3) !important;
+  border-radius: 8px !important;
+  color: #f1f5f9 !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 1rem !important;
+}
+
+.stTextInput > div > div > input:focus {
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 0 2px rgba(124,58,237,0.2) !important;
+}
+
+/* Select boxes */
+.stSelectbox > div > div > div {
+  background: rgba(15,23,42,0.8) !important;
+  border: 1px solid rgba(124,58,237,0.3) !important;
+  border-radius: 8px !important;
+}
+
+/* Slider styling */
+.stSlider > div > div > div > div {
+  background: linear-gradient(90deg, #7c3aed, #4f46e5) !important;
+  height: 6px !important;
+}
+
+/* Text area */
+textarea {
+  background: rgba(15,23,42,0.8) !important;
+  border: 1px solid rgba(124,58,237,0.3) !important;
+  border-radius: 8px !important;
+  color: #f1f5f9 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+  padding: 1rem !important;
+}
+
+/* Success/info messages */
+.stAlert {
+  border-radius: 8px !important;
+  border: none !important;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .alw-card {
+    padding: 1rem;
+    margin: 0.5rem;
+  }
+}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_app_title() -> None:
+    """Render the main application title and description."""
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="
+            font-size: 2.5rem; 
+            font-weight: 800; 
+            background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 0.5rem;
+        ">🔖 AI Hashtag Generator</h1>
+        <p style="color: #94a3b8; font-size: 1.1rem; margin: 0;">
+            Create perfect hashtags for your social media posts in seconds
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_main_container_start() -> None:
+    """Render the opening of the main card container."""
+    st.markdown("<div class='alw-card'>", unsafe_allow_html=True)
+
+
+def render_main_container_end() -> None:
+    """Render the closing of the main card container."""
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_wizard_progress(current_step: int, total_steps: int, step_titles: List[str]) -> None:
+    """Render wizard-style progress bar with step titles."""
+    progress_percentage = ((current_step - 1) / (total_steps - 1)) * 100 if total_steps > 1 else 100
+    
+    st.markdown(f"""
+    <div class="wizard-progress">
+        <div class="progress-header">
+            <h3 class="step-title">
+                <span class="step-number">Step {current_step} of {total_steps}</span>
+                <span class="step-name">{step_titles[current_step - 1] if current_step <= len(step_titles) else ''}</span>
+            </h3>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: {progress_percentage}%"></div>
+        </div>
+        <div class="step-indicators">
+            {''.join([f'<div class="step-dot {"completed" if i < current_step else "current" if i == current_step else "pending"}"></div>' for i in range(1, total_steps + 1)])}
+        </div>
+    </div>
+    <style>
+    .wizard-progress {{
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: rgba(30,41,59,0.3);
+        border-radius: 12px;
+        border: 1px solid rgba(124,58,237,0.2);
+    }}
+    .progress-header {{
+        margin-bottom: 1rem;
+    }}
+    .step-title {{
+        margin: 0;
+        color: #f1f5f9;
+        font-size: 1.4rem;
+        font-weight: 700;
+    }}
+    .step-number {{
+        color: #94a3b8;
+        font-size: 1rem;
+        font-weight: 500;
+        display: block;
+        margin-bottom: 0.25rem;
+    }}
+    .step-name {{
+        color: #7c3aed;
+        font-size: 1.4rem;
+    }}
+    .progress-bar-container {{
+        width: 100%;
+        height: 6px;
+        background: rgba(15,23,42,0.6);
+        border-radius: 3px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }}
+    .progress-bar {{
+        height: 100%;
+        background: linear-gradient(90deg, #7c3aed, #4f46e5);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }}
+    .step-indicators {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }}
+    .step-dot {{
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }}
+    .step-dot.completed {{
+        background: #10b981;
+        box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
+    }}
+    .step-dot.current {{
+        background: #7c3aed;
+        box-shadow: 0 0 0 3px rgba(124,58,237,0.3);
+    }}
+    .step-dot.pending {{
+        background: rgba(124,58,237,0.2);
+        border: 2px solid rgba(124,58,237,0.4);
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def render_wizard_navigation(current_step: int, total_steps: int, can_proceed: bool = True, show_generate: bool = False) -> Tuple[bool, bool, bool]:
+    """Render wizard navigation buttons and return button states."""
+    st.markdown('<div class="wizard-navigation">', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    previous_clicked = False
+    next_clicked = False
+    generate_clicked = False
+    
+    with col1:
+        if current_step > 1:
+            previous_clicked = st.button("← Previous", use_container_width=True, key="wizard_prev")
+    
+    with col3:
+        if show_generate:
+            generate_clicked = st.button("✨ Generate Hashtags", use_container_width=True, type="primary", key="wizard_generate")
+        elif current_step < total_steps:
+            next_clicked = st.button("Next →", use_container_width=True, disabled=not can_proceed, type="primary", key="wizard_next")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Add navigation styling
+    st.markdown("""
+    <style>
+    .wizard-navigation {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(124,58,237,0.2);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    return previous_clicked, next_clicked, generate_clicked
+
+
+def render_content_summary(content: str) -> None:
+    """Render a summary box showing the user's content."""
+    preview = content[:100] + '...' if len(content) > 100 else content
+    st.markdown(f"""
+    <div style="
+        background: rgba(59,130,246,0.1);
+        border: 1px solid rgba(59,130,246,0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    ">
+        <strong style="color: #60a5fa;">📄 Your content:</strong>
+        <br>
+        <span style="color: #93c5fd;">{preview}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_settings_summary(platform: str, category: str, count: int) -> None:
+    """Render a summary box showing the user's settings."""
+    st.markdown(f"""
+    <div style="
+        background: rgba(124,58,237,0.1);
+        border: 1px solid rgba(124,58,237,0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    ">
+        <strong style="color: #a78bfa;">📋 Summary:</strong><br>
+        <span style="color: #c4b5fd;">
+            <strong>Platform:</strong> {platform} • 
+            <strong>Category:</strong> {category} • 
+            <strong>Count:</strong> {count} hashtags
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_hashtag_results_summary(hashtag_count: int, platform: str, category: str) -> None:
+    """Render a success summary box for generated hashtags."""
+    st.markdown(f"""
+    <div style="
+        background: rgba(16,185,129,0.1);
+        border: 1px solid rgba(16,185,129,0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        text-align: center;
+    ">
+        <strong style="color: #10b981;">
+            📊 {hashtag_count} hashtags optimized for {platform} • {category} category
+        </strong>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_copy_button(text_to_copy: str) -> None:
-    """
-    Renders an in-browser copy-to-clipboard button using a small HTML snippet.
-    
-    Args:
-        text_to_copy (str): Text to copy to clipboard when button is clicked
-    """
+    """Render an in-browser copy-to-clipboard button."""
     escaped = (
         text_to_copy.replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -51,188 +362,229 @@ def render_copy_button(text_to_copy: str) -> None:
     )
 
 
-def inject_styles() -> None:
-    """
-    Inject custom CSS styles for the application.
-    """
-    st.markdown(
-        """
-<style>
-/* Page background */
-.stApp {{
-  background: radial-gradient(1200px 600px at 10% -20%, rgba(124,58,237,0.15), transparent 40%),
-              radial-gradient(1000px 500px at 110% 10%, rgba(79,70,229,0.15), transparent 40%),
-              linear-gradient(180deg, #0b0f19 0%, #0b0f19 100%);
-}}
-
-/* Card container */
-.alw-card {{
-  border: 1px solid rgba(124,58,237,0.3);
-  background: linear-gradient(180deg, rgba(17,24,39,0.9), rgba(17,24,39,0.7));
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-  border-radius: 18px;
-  padding: 1.25rem;
-}}
-
-/* Big gradient title */
-.alw-title {{
-  font-weight: 800;
-  font-size: 2.1rem;
-  letter-spacing: -0.02em;
-  background: linear-gradient(90deg, #a78bfa, #60a5fa);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}}
-
-/* Subtle label */
-.alw-sub {{
-  color: #9ca3af;
-  margin-top: -6px;
-}}
-
-/* Result tag grid */
-.alw-tags {{
-  display: flex; flex-wrap: wrap; gap: 8px;
-}}
-.alw-tag {{
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(124,58,237,0.12);
-  border: 1px solid rgba(124,58,237,0.35);
-  color: #e5e7eb; font-weight: 600; font-size: 0.95rem;
-}}
-
-/* Buttons */
-div.stButton > button:first-child {{
-  background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
-  color: white !important;
-  border: 1px solid #7c3aed !important;
-  padding: 0.6rem 1rem !important;
-  border-radius: 12px !important;
-  font-weight: 700 !important;
-}}
-
-/* Text input/slider */
-.stTextInput > div > div > input {{
-  background: rgba(17,24,39,0.65);
-  border: 1px solid rgba(124,58,237,0.35);
-  border-radius: 12px;
-  color: #e5e7eb;
-}}
-textarea {{
-  background: rgba(17,24,39,0.65);
-  border: 1px solid rgba(124,58,237,0.35);
-  border-radius: 12px;
-  color: #e5e7eb;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  padding: 10px 12px;
-}}
-
-/* Section headers */
-.section-header {{
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #e5e7eb;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(124,58,237,0.2);
-}}
-
-/* Info boxes */
-.info-box {{
-  background: rgba(124,58,237,0.1);
-  border: 1px solid rgba(124,58,237,0.3);
-  border-radius: 8px;
-  padding: 0.75rem;
-  margin: 0.5rem 0;
-}}
-
-/* Success message styling */
-.success-box {{
-  background: rgba(34,197,94,0.1);
-  border: 1px solid rgba(34,197,94,0.3);
-  border-radius: 8px;
-  padding: 0.75rem;
-  margin: 0.5rem 0;
-  color: #86efac;
-}}
-</style>
-        """,
-        unsafe_allow_html=True,
+def render_wizard_step_1() -> None:
+    """Render Step 1: Content Input"""
+    st.markdown("### 📝 What do you want hashtags for?")
+    st.markdown("Choose how you want to provide your content - either type keywords directly or paste a website URL to extract content automatically.")
+    
+    # Input method selection
+    input_method = st.radio(
+        "",
+        ["📝 Type keywords or description", "🔗 Extract from website URL"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="wizard_input_method"
     )
-
-
-def render_section_header(title: str, icon: str = "") -> None:
-    """
-    Render a styled section header.
     
-    Args:
-        title (str): Section title
-        icon (str): Optional emoji icon
-    """
-    st.markdown(f"### {icon} {title}")
-
-
-def render_info_message(message: str, message_type: str = "info") -> None:
-    """
-    Render an info message with custom styling.
+    content = ""
+    source_type = "manual input"
     
-    Args:
-        message (str): Message to display
-        message_type (str): Type of message ('info', 'success', 'warning', 'error')
-    """
-    if message_type == "info":
-        st.info(message)
-    elif message_type == "success":
-        st.success(message)
-    elif message_type == "warning":
-        st.warning(message)
-    elif message_type == "error":
-        st.error(message)
-
-
-def render_hashtag_stats(hashtag_count: int, platform: str, category: str) -> None:
-    """
-    Render hashtag statistics and information.
+    if "📝" in input_method:
+        content = st.text_input(
+            "",
+            placeholder="Example: fitness motivation, healthy recipes, startup tips...",
+            help="Describe your content, add keywords, or paste your caption",
+            label_visibility="collapsed",
+            value=st.session_state.get("wizard_content", "") if st.session_state.get("wizard_source_type") == "manual input" else "",
+            key="wizard_manual_input"
+        )
+        source_type = "manual input"
+        
+    else:  # URL input
+        url_input = st.text_input(
+            "",
+            placeholder="https://example.com/your-blog-post",
+            help="Paste any blog post, article, or webpage URL",
+            label_visibility="collapsed",
+            key="wizard_url_input"
+        )
+        
+        if url_input:
+            with st.spinner("🔍 Reading content from your website..."):
+                extracted = extract_content_from_url(url_input)
+                
+            if "error" in extracted:
+                st.error(f"❌ {extracted['error']}")
+                content = ""
+            else:
+                content = extracted["content"]
+                source_type = "webpage content"
+                
+                # Show success message
+                st.success("✅ Successfully extracted content from your website!")
+                with st.expander("📄 Preview extracted content"):
+                    if extracted.get("title"):
+                        st.write(f"**Title:** {extracted['title']}")
+                    st.write(f"**Content preview:** {content[:200]}...")
     
-    Args:
-        hashtag_count (int): Number of hashtags
-        platform (str): Target platform
-        category (str): Content category
-    """
-    st.caption(f"📊 {hashtag_count} hashtags • Optimized for {platform} • {category} category")
-
-
-def render_content_preview(extracted_data: dict) -> None:
-    """
-    Render extracted content preview in an expandable section.
+    # Update session state
+    st.session_state["wizard_content"] = content
+    st.session_state["wizard_source_type"] = source_type
     
-    Args:
-        extracted_data (dict): Dictionary containing extracted content data
-    """
-    with st.expander("📄 Extracted Content Preview", expanded=False):
-        if extracted_data.get("title"):
-            st.write(f"**Title:** {extracted_data['title']}")
-        if extracted_data.get("description"):
-            st.write(f"**Description:** {extracted_data['description']}")
-        if extracted_data.get("content"):
-            st.write(f"**Content:** {extracted_data['content'][:300]}...")
-
-
-def render_platform_suggestion(platform: str, optimal_count: int, user_count: int) -> None:
-    """
-    Render platform optimization suggestion if needed.
+    # Navigation
+    can_proceed = bool(content.strip())
+    prev_clicked, next_clicked, _ = render_wizard_navigation(1, 3, can_proceed)
     
-    Args:
-        platform (str): Target platform
-        optimal_count (int): Optimal hashtag count for platform
-        user_count (int): User's selected count
-    """
+    if next_clicked and can_proceed:
+        st.session_state["wizard_step"] = 2
+        st.rerun()
+
+
+def render_wizard_step_2() -> None:
+    """Render Step 2: Personalization"""
+    st.markdown("### 🎯 Customize for your needs")
+    st.markdown("Select your target platform and content category to get hashtags optimized for your specific needs.")
+    
+    # Show content summary
+    render_content_summary(st.session_state.get("wizard_content", ""))
+    
+    # Personalization options
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**🎯 Platform**")
+        platform = st.selectbox(
+            "",
+            ["Instagram", "TikTok", "LinkedIn", "Twitter", "YouTube"],
+            help="Where will you post this content?",
+            label_visibility="collapsed",
+            index=["Instagram", "TikTok", "LinkedIn", "Twitter", "YouTube"].index(st.session_state.get("wizard_platform", "Instagram")),
+            key="wizard_platform_select"
+        )
+    
+    with col2:
+        st.markdown("**📂 Category**")
+        category = st.selectbox(
+            "",
+            ["Business", "Lifestyle", "Technology", "Travel", "Food", "Fitness", "Education", "Entertainment"],
+            help="What type of content is this?",
+            label_visibility="collapsed",
+            index=["Business", "Lifestyle", "Technology", "Travel", "Food", "Fitness", "Education", "Entertainment"].index(st.session_state.get("wizard_category", "Business")),
+            key="wizard_category_select"
+        )
+    
+    with col3:
+        st.markdown("**🔢 Number of hashtags**")
+        user_count = st.slider(
+            "",
+            min_value=5, 
+            max_value=20, 
+            value=st.session_state.get("wizard_count", 10), 
+            step=1,
+            help="How many hashtags do you want?",
+            label_visibility="collapsed",
+            key="wizard_count_slider"
+        )
+    
+    # Show platform optimization tip
+    optimal_count = adjust_count_for_platform(platform, user_count)
     if optimal_count != user_count:
-        from config import PLATFORM_CONFIG
         min_opt, max_opt = PLATFORM_CONFIG[platform]["optimal_count"]
-        st.info(f"💡 {platform} works best with {min_opt}-{max_opt} hashtags")
+        st.info(f"💡 **Tip:** {platform} performs best with {min_opt}-{max_opt} hashtags for maximum reach!")
+    
+    # Update session state
+    st.session_state["wizard_platform"] = platform
+    st.session_state["wizard_category"] = category
+    st.session_state["wizard_count"] = user_count
+    
+    # Navigation
+    prev_clicked, next_clicked, _ = render_wizard_navigation(2, 3, True)
+    
+    if prev_clicked:
+        st.session_state["wizard_step"] = 1
+        st.rerun()
+    elif next_clicked:
+        st.session_state["wizard_step"] = 3
+        st.rerun()
+
+
+def render_wizard_step_3() -> None:
+    """Render Step 3: Generate & Results"""
+    st.markdown("### 🚀 Generate & Results")
+    
+    # Show summary
+    render_settings_summary(st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_category", "Business"), st.session_state.get("wizard_count", 10))
+    
+    # Check if hashtags are already generated
+    tags = st.session_state.get("generated_hashtags", [])
+    
+    if not tags:
+        # Show generate section
+        st.markdown("Click the button below to generate your personalized hashtags using AI.")
+        
+        # Navigation with generate button
+        prev_clicked, _, generate_clicked = render_wizard_navigation(3, 3, True, show_generate=True)
+        
+        if prev_clicked:
+            st.session_state["wizard_step"] = 2
+            st.rerun()
+        elif generate_clicked:
+            # Generate hashtags
+            optimal_count = adjust_count_for_platform(st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_count", 10))
+            enhanced_prompt = get_enhanced_prompt(
+                st.session_state.get("wizard_content", ""), 
+                st.session_state.get("wizard_platform", "Instagram"), 
+                st.session_state.get("wizard_category", "Business"), 
+                optimal_count, 
+                st.session_state.get("wizard_source_type", "manual input")
+            )
+            
+            with st.spinner(f"Crafting {optimal_count} {st.session_state.get('wizard_platform', 'Instagram')}-optimized hashtags for {st.session_state.get('wizard_category', 'Business')} content…"):
+                try:
+                    tags = generate_hashtags(st.session_state.get("wizard_content", ""), optimal_count, enhanced_prompt)
+                    if tags:
+                        st.session_state["generated_hashtags"] = tags
+                        st.session_state["hashtags_text"] = " ".join(tags)
+                        st.success(f"✅ Generated {len(tags)} hashtags optimized for {st.session_state.get('wizard_platform', 'Instagram')} in {st.session_state.get('wizard_category', 'Business')} category")
+                        st.rerun()
+                    else:
+                        st.error("No hashtags returned. Try different content or check your API key.")
+                except Exception as e:
+                    st.error(f"Error generating hashtags: {str(e)}")
+    else:
+        # Show results
+        st.markdown("### ✨ Your hashtags are ready!")
+        
+        one_line = " ".join(tags)
+        
+        # Initialize session state if not present
+        if "hashtags_text" not in st.session_state:
+            st.session_state["hashtags_text"] = one_line
+        
+        # Show hashtag count and platform info
+        current_hashtags = st.session_state.get("hashtags_text", one_line).split()
+        hashtag_count = len([h for h in current_hashtags if h.startswith('#')])
+        
+        render_hashtag_results_summary(hashtag_count, st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_category", "Business"))
+        
+        # Editable text area
+        st.markdown("**Your hashtags (you can edit them):**")
+        st.text_area(
+            "",
+            key="hashtags_text",
+            height=100,
+            help="✏️ Feel free to edit, add, or remove hashtags before copying",
+            label_visibility="collapsed"
+        )
+        
+        # Copy button and restart option
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            render_copy_button(st.session_state.get("hashtags_text", one_line))
+        
+        st.markdown("---")
+        
+        # Navigation with restart option
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col1:
+            if st.button("← Previous", use_container_width=True):
+                st.session_state["wizard_step"] = 2
+                st.rerun()
+        with col3:
+            if st.button("🔄 Start Over", use_container_width=True):
+                # Clear all session state
+                for key in list(st.session_state.keys()):
+                    if key.startswith("wizard_") or key in ["generated_hashtags", "hashtags_text"]:
+                        del st.session_state[key]
+                st.session_state["wizard_step"] = 1
+                st.rerun()
