@@ -257,7 +257,7 @@ def main() -> None:
             if not seed.strip():
                 st.warning("Please enter a keyword or hashtag to begin.")
             else:
-                with st.spinner("Crafting hashtags with Gemini…"):
+                with st.spinner("Crafting hashtags with ALwrity…"):
                     try:
                         tags = generate_hashtags(seed, num, BASE_PROMPT)
                     except Exception as e:
