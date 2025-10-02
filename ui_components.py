@@ -131,12 +131,10 @@ def render_main_container_end() -> None:
 
 def render_wizard_progress(current_step: int, total_steps: int, step_titles: List[str]) -> None:
     """Render minimal wizard progress indicator."""
-    # Minimal progress indicator - just show step dots
+    # Just show simple step dots without any container
     st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 1rem;">
-        <div style="display: flex; justify-content: center; gap: 8px; align-items: center;">
-            {''.join([f'<div style="width: 8px; height: 8px; border-radius: 50%; background: {"#7c3aed" if i <= current_step else "rgba(124,58,237,0.3)"};"></div>' for i in range(1, total_steps + 1)])}
-        </div>
+    <div style="display: flex; justify-content: center; gap: 8px; align-items: center; margin: 0.5rem 0;">
+        {''.join([f'<div style="width: 8px; height: 8px; border-radius: 50%; background: {"#7c3aed" if i <= current_step else "rgba(124,58,237,0.3)"};"></div>' for i in range(1, total_steps + 1)])}
     </div>
     """, unsafe_allow_html=True)
 
