@@ -1,9 +1,13 @@
 import os
-from typing import List
+from typing import List, Dict, Optional
+from urllib.parse import urlparse, urljoin
+import re
 
 import streamlit as st
 import google.generativeai as genai
 import streamlit.components.v1 as components
+import requests
+from bs4 import BeautifulSoup
 
 
 # -------------------------------------------------------------
@@ -25,8 +29,74 @@ st.set_page_config(
 )
 
 
-# ------------------ Prompt (Edit to improve outputs) ------------------
-# Tweak this prompt to steer hashtag quality and style.
+# ------------------ Platform & Category Configurations ------------------
+PLATFORM_CONFIG = {
+    "Instagram": {
+        "optimal_count": (8, 12),
+        "style": "Mix of popular and niche hashtags for community engagement",
+        "requirements": "Focus on lifestyle, visual appeal, and community building. Include trending and evergreen hashtags."
+    },
+    "TikTok": {
+        "optimal_count": (5, 8),
+        "style": "Trending and viral format hashtags",
+        "requirements": "Emphasize trending challenges, viral content, and short catchy phrases. Include dance, music, and trend-related tags."
+    },
+    "LinkedIn": {
+        "optimal_count": (3, 5),
+        "style": "Professional and industry-specific hashtags",
+        "requirements": "Focus on professional development, industry insights, and thought leadership. Avoid casual or entertainment hashtags."
+    },
+    "Twitter": {
+        "optimal_count": (1, 3),
+        "style": "Concise and trending topic hashtags",
+        "requirements": "Keep it minimal and news-worthy. Focus on current events, conversations, and trending topics."
+    },
+    "YouTube": {
+        "optimal_count": (5, 10),
+        "style": "Searchable keyword hashtags",
+        "requirements": "Optimize for search discovery. Include descriptive, educational, and how-to related hashtags."
+    }
+}
+
+CATEGORY_KEYWORDS = {
+    "Business": ["entrepreneur", "startup", "leadership", "productivity", "business", "marketing", "sales", "growth"],
+    "Lifestyle": ["dailylife", "inspiration", "wellness", "mindfulness", "lifestyle", "motivation", "selfcare", "happiness"],
+    "Technology": ["tech", "innovation", "AI", "digital", "software", "coding", "programming", "future"],
+    "Travel": ["wanderlust", "adventure", "explore", "destination", "travel", "vacation", "journey", "discover"],
+    "Food": ["foodie", "recipe", "cooking", "delicious", "cuisine", "chef", "homemade", "tasty"],
+    "Fitness": ["workout", "health", "motivation", "fitlife", "training", "gym", "exercise", "wellness"],
+    "Education": ["learning", "knowledge", "skills", "growth", "study", "education", "teaching", "development"],
+    "Entertainment": ["fun", "trending", "viral", "creative", "content", "entertainment", "comedy", "music"]
+}
+
+# ------------------ Enhanced Prompt Template ------------------
+ENHANCED_PROMPT = """
+You are an expert social media strategist specializing in {platform} content.
+Given the following content from {source_type}, generate exactly {num} high-quality, 
+trend-aware, brand-safe hashtags optimized for {platform} in the {category} niche.
+
+Platform-specific requirements for {platform}:
+{platform_requirements}
+
+Category focus: {category}
+Include relevant terms like: {category_keywords}
+
+Content: "{content}"
+
+Guidelines:
+- Optimize for {platform} algorithm and user behavior
+- Include {category}-specific terminology
+- Mix broad reach and niche targeting hashtags
+- Make hashtags short (1–3 words), readable, and relevant
+- Avoid duplicates, numbers, and banned/sensitive words
+- Use only standard ASCII characters; no emojis
+- Output as ONE single line, space-separated, each starting with '#'
+- Output EXACTLY {num} hashtags and nothing else
+
+Generate {num} hashtags:
+"""
+
+# ------------------ Legacy Prompt (Fallback) ------------------
 BASE_PROMPT = (
     """
 You are an expert social media strategist. Given a user seed (keyword or existing hashtag),
@@ -59,6 +129,118 @@ def get_api_key() -> str:
     if not key:
         key = os.environ.get("GEMINI_API_KEY", "")
     return key
+
+
+def extract_content_from_url(url: str) -> Dict[str, str]:
+    """Extract content from a given URL for hashtag generation.
+    Returns a dictionary with extracted content or error message.
+    """
+    try:
+        # Validate URL
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return {"error": "Invalid URL format"}
+        
+        # Add scheme if missing
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        # Fetch content
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Parse HTML
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Extract title
+        title = soup.find('title')
+        title_text = title.get_text().strip() if title else ""
+        
+        # Extract meta description
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        if not meta_desc:
+            meta_desc = soup.find('meta', attrs={'property': 'og:description'})
+        description = meta_desc.get('content', '').strip() if meta_desc else ""
+        
+        # Extract headings
+        headings = []
+        for tag in soup.find_all(['h1', 'h2', 'h3']):
+            text = tag.get_text().strip()
+            if text and len(text) < 200:
+                headings.append(text)
+        
+        # Extract main content (first few paragraphs)
+        paragraphs = []
+        for p in soup.find_all('p'):
+            text = p.get_text().strip()
+            if text and len(text) > 50:  # Skip short paragraphs
+                paragraphs.append(text)
+                if len(paragraphs) >= 3:  # Limit to first 3 substantial paragraphs
+                    break
+        
+        # Combine extracted content
+        content_parts = []
+        if title_text:
+            content_parts.append(f"Title: {title_text}")
+        if description:
+            content_parts.append(f"Description: {description}")
+        if headings:
+            content_parts.append(f"Key topics: {', '.join(headings[:3])}")
+        if paragraphs:
+            # Combine paragraphs and limit length
+            combined_text = ' '.join(paragraphs)[:500] + "..."
+            content_parts.append(f"Content: {combined_text}")
+        
+        extracted_content = ' | '.join(content_parts)
+        
+        return {
+            "content": extracted_content,
+            "title": title_text,
+            "description": description,
+            "url": url
+        }
+        
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Failed to fetch URL: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Error processing content: {str(e)}"}
+
+
+def get_enhanced_prompt(content: str, platform: str, category: str, num: int, source_type: str = "manual input") -> str:
+    """Generate enhanced prompt based on platform and category selections."""
+    platform_info = PLATFORM_CONFIG.get(platform, PLATFORM_CONFIG["Instagram"])
+    category_keywords = ", ".join(CATEGORY_KEYWORDS.get(category, []))
+    
+    return ENHANCED_PROMPT.format(
+        platform=platform,
+        source_type=source_type,
+        num=num,
+        category=category,
+        platform_requirements=platform_info["requirements"],
+        category_keywords=category_keywords,
+        content=content
+    )
+
+
+def adjust_count_for_platform(platform: str, user_count: int) -> int:
+    """Adjust hashtag count based on platform optimization while respecting user preference."""
+    if platform not in PLATFORM_CONFIG:
+        return user_count
+    
+    min_count, max_count = PLATFORM_CONFIG[platform]["optimal_count"]
+    
+    # If user count is within optimal range, use it
+    if min_count <= user_count <= max_count:
+        return user_count
+    
+    # If user count is outside optimal range, suggest the closest optimal value
+    if user_count < min_count:
+        return min_count
+    else:
+        return max_count
 
 
 def generate_hashtags(seed: str, num: int, prompt_template: str) -> List[str]:
@@ -238,15 +420,80 @@ def main() -> None:
     with st.container():
         st.markdown("<div class='alw-card'>", unsafe_allow_html=True)
 
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            seed = st.text_input(
+        # Content Input Section
+        st.markdown("### 📝 Content Input")
+        
+        # Input type selection
+        input_type = st.radio(
+            "Choose input method:",
+            ["Manual Text", "From URL"],
+            horizontal=True,
+            help="Enter text manually or extract content from a webpage"
+        )
+        
+        content = ""
+        source_type = "manual input"
+        
+        if input_type == "Manual Text":
+            content = st.text_input(
                 "Enter keyword or caption",
                 placeholder="e.g. fitness, #contentmarketing, sustainable travel",
-                
+                help="Enter keywords, phrases, or existing captions"
             )
+            source_type = "manual input"
+        else:
+            url_input = st.text_input(
+                "Enter webpage URL",
+                placeholder="e.g. https://example.com/blog-post",
+                help="Paste a blog post, article, or webpage URL to extract content"
+            )
+            
+            if url_input:
+                with st.spinner("Extracting content from URL..."):
+                    extracted = extract_content_from_url(url_input)
+                    
+                if "error" in extracted:
+                    st.error(f"❌ {extracted['error']}")
+                    content = ""
+                else:
+                    content = extracted["content"]
+                    source_type = "webpage content"
+                    
+                    # Show extracted content preview
+                    with st.expander("📄 Extracted Content Preview", expanded=False):
+                        if extracted.get("title"):
+                            st.write(f"**Title:** {extracted['title']}")
+                        if extracted.get("description"):
+                            st.write(f"**Description:** {extracted['description']}")
+                        st.write(f"**Content:** {content[:300]}...")
+        
+        # Personalization Section
+        st.markdown("### 🎯 Personalization")
+        
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col1:
+            platform = st.selectbox(
+                "Platform",
+                ["Instagram", "TikTok", "LinkedIn", "Twitter", "YouTube"],
+                help="Choose the social media platform for optimized hashtags"
+            )
+        
         with col2:
-            num = st.slider("Select number of hashtags", min_value=5, max_value=20, value=10, step=1)
+            category = st.selectbox(
+                "Category",
+                ["Business", "Lifestyle", "Technology", "Travel", "Food", "Fitness", "Education", "Entertainment"],
+                help="Select content category for relevant hashtags"
+            )
+        
+        with col3:
+            user_count = st.slider("Hashtag count", min_value=5, max_value=20, value=10, step=1)
+            
+            # Show platform-optimized count suggestion
+            optimal_count = adjust_count_for_platform(platform, user_count)
+            if optimal_count != user_count:
+                min_opt, max_opt = PLATFORM_CONFIG[platform]["optimal_count"]
+                st.info(f"💡 {platform} works best with {min_opt}-{max_opt} hashtags")
 
         generate = st.button("Generate Hashtags", use_container_width=True)
 
@@ -254,12 +501,15 @@ def main() -> None:
             st.session_state.generated_hashtags = []  # type: ignore[attr-defined]
 
         if generate:
-            if not seed.strip():
-                st.warning("Please enter a keyword or hashtag to begin.")
+            if not content.strip():
+                st.warning("Please enter content or provide a valid URL to begin.")
             else:
-                with st.spinner("Crafting hashtags with ALwrity…"):
+                # Use enhanced prompt with platform and category optimization
+                enhanced_prompt = get_enhanced_prompt(content, platform, category, optimal_count, source_type)
+                
+                with st.spinner(f"Crafting {optimal_count} {platform}-optimized hashtags for {category} content…"):
                     try:
-                        tags = generate_hashtags(seed, num, BASE_PROMPT)
+                        tags = generate_hashtags(content, optimal_count, enhanced_prompt)
                     except Exception as e:
                         st.error(str(e))
                         tags = []
@@ -268,12 +518,17 @@ def main() -> None:
                     st.session_state.generated_hashtags = tags  # type: ignore[attr-defined]
                     # Update editable text content to latest generation
                     st.session_state["hashtags_text"] = " ".join(tags)
+                    
+                    # Show generation info
+                    st.success(f"✅ Generated {len(tags)} hashtags optimized for {platform} in {category} category")
                 else:
-                    st.info("No hashtags returned. Try a different seed.")
+                    st.info("No hashtags returned. Try different content or check your API key.")
 
         # Results area persists until next generation
         tags: List[str] = st.session_state.get("generated_hashtags", [])  # type: ignore[attr-defined]
         if tags:
+            st.markdown("### 🏷️ Generated Hashtags")
+            
             # Provide a single-line, space-separated version
             one_line = " ".join(tags)
 
@@ -283,14 +538,22 @@ def main() -> None:
 
             # Single variant: editable text area for readability and tweaks
             st.text_area(
-                "Generated hashtags",
+                "Generated hashtags (editable)",
                 key="hashtags_text",
                 height=96,
-                label_visibility="collapsed",
+                help="You can edit these hashtags before copying them"
             )
 
-            # Dedicated copy button (copies current edited text)
-            render_copy_button(st.session_state.get("hashtags_text", one_line))
+            # Show hashtag count and platform info
+            current_hashtags = st.session_state.get("hashtags_text", one_line).split()
+            hashtag_count = len([h for h in current_hashtags if h.startswith('#')])
+            
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.caption(f"📊 {hashtag_count} hashtags • Optimized for {platform} • {category} category")
+            with col2:
+                # Dedicated copy button (copies current edited text)
+                render_copy_button(st.session_state.get("hashtags_text", one_line))
 
         st.markdown("</div>", unsafe_allow_html=True)  # close .alw-card
 
