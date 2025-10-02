@@ -13,7 +13,7 @@ An intelligent hashtag generator powered by Google Gemini AI that creates trendi
 
 ## 🚀 Live Demo
 
-**[Try ALwrity AI Hashtag Generator](https://your-app-url.streamlit.app)**
+**[Try ALwrity AI Hashtag Generator](https://alwrity-ai-hashtag-generator.streamlit.app/)**
 
 ## 🛠️ Tech Stack
 
@@ -117,4 +117,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for content creators and social media marketers**
+**Made with ❤️ from ALwrity team for content creators and social media marketers**
