@@ -282,7 +282,7 @@ def main() -> None:
 
             # Single variant: editable text area for readability and tweaks
             st.text_area(
-                "",
+                "Generated hashtags",
                 value=current_text,
                 key="hashtags_text",
                 height=96,
