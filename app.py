@@ -277,13 +277,13 @@ def main() -> None:
             # Provide a single-line, space-separated version
             one_line = " ".join(tags)
 
-            # Use session value when present, so user edits persist
-            current_text = st.session_state.get("hashtags_text", one_line)
+            # Initialize session state if not present
+            if "hashtags_text" not in st.session_state:
+                st.session_state.hashtags_text = one_line
 
             # Single variant: editable text area for readability and tweaks
             st.text_area(
                 "Generated hashtags",
-                value=current_text,
                 key="hashtags_text",
                 height=96,
                 label_visibility="collapsed",
