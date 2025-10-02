@@ -224,23 +224,18 @@ div.stButton > button:first-child {{
 def main() -> None:
     inject_styles()
 
-    st.markdown("<div class='alw-title'>ALwrity AI Hashtag Generator</div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div class='alw-sub'>Generate professional, trend-ready hashtags in one click.</div>",
-        unsafe_allow_html=True,
-    )
-
     with st.container():
         st.markdown("<div class='alw-card'>", unsafe_allow_html=True)
 
         col1, col2 = st.columns([3, 1])
         with col1:
             seed = st.text_input(
-                "Enter a keyword or seed hashtag",
+                "Enter keyword or caption",
                 placeholder="e.g. fitness, #contentmarketing, sustainable travel",
+                
             )
         with col2:
-            num = st.slider("# of hashtags", min_value=5, max_value=20, value=10, step=1)
+            num = st.slider("Select number of hashtags", min_value=5, max_value=20, value=10, step=1)
 
         generate = st.button("Generate Hashtags", use_container_width=True)
 
@@ -266,9 +261,6 @@ def main() -> None:
         # Results area persists until next generation
         tags: List[str] = st.session_state.get("generated_hashtags", [])  # type: ignore[attr-defined]
         if tags:
-            st.divider()
-            st.subheader("Generated Hashtags")
-
             # Display as chips
             chips_html = "<div class='alw-tags'>" + "".join(
                 f"<span class='alw-tag'>{t}</span>" for t in tags
@@ -287,9 +279,6 @@ def main() -> None:
         st.markdown("</div>", unsafe_allow_html=True)  # close .alw-card
 
     st.markdown("\n")
-    st.caption(
-        "Tip: You can improve results by editing the BASE_PROMPT in `app.py`."
-    )
 
 
 if __name__ == "__main__":
