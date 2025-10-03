@@ -339,7 +339,6 @@ def render_wizard_step_1() -> None:
 
 def render_wizard_step_2() -> None:
     """Render Step 2: Personalization"""
-    st.markdown("### 🎯 Customize for your needs")
     st.markdown("Select your target platform and content category to get hashtags optimized for your specific needs.")
     
     # Show content summary
