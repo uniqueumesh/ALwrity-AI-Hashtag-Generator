@@ -299,7 +299,7 @@ def render_wizard_step_1() -> None:
     
     # Input method selection
     input_method = st.radio(
-        "",
+        "Choose input method",
         ["📝 Type keywords or description", "🔗 Extract from website URL"],
         horizontal=True,
         label_visibility="collapsed",
@@ -311,7 +311,7 @@ def render_wizard_step_1() -> None:
     
     if "📝" in input_method:
         content = st.text_input(
-            "",
+            "Enter your content",
             placeholder="Example: fitness motivation, healthy recipes, startup tips...",
             help="Describe your content, add keywords, or paste your caption",
             label_visibility="collapsed",
@@ -322,7 +322,7 @@ def render_wizard_step_1() -> None:
         
     else:  # URL input
         url_input = st.text_input(
-            "",
+            "Enter website URL",
             placeholder="https://example.com/your-blog-post",
             help="Paste any blog post, article, or webpage URL",
             label_visibility="collapsed",
@@ -373,7 +373,7 @@ def render_wizard_step_2() -> None:
     with col1:
         st.markdown("**🎯 Platform**")
         platform = st.selectbox(
-            "",
+            "Select platform",
             ["Instagram", "TikTok", "LinkedIn", "Twitter", "YouTube"],
             help="Where will you post this content?",
             label_visibility="collapsed",
@@ -384,7 +384,7 @@ def render_wizard_step_2() -> None:
     with col2:
         st.markdown("**📂 Category**")
         category = st.selectbox(
-            "",
+            "Select category",
             ["Business", "Lifestyle", "Technology", "Travel", "Food", "Fitness", "Education", "Entertainment"],
             help="What type of content is this?",
             label_visibility="collapsed",
@@ -395,7 +395,7 @@ def render_wizard_step_2() -> None:
     with col3:
         st.markdown("**🔢 Number of hashtags**")
         user_count = st.slider(
-            "",
+            "Select hashtag count",
             min_value=5, 
             max_value=20, 
             value=st.session_state.get("wizard_count", 10), 
@@ -499,7 +499,7 @@ def render_wizard_step_3() -> None:
         # Editable text area
         st.markdown("**Your hashtags (you can edit them):**")
         st.text_area(
-            "",
+            "Edit your hashtags",
             key="hashtags_text",
             height=100,
             help="✏️ Feel free to edit, add, or remove hashtags before copying",
