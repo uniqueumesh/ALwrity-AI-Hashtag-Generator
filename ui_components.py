@@ -272,6 +272,7 @@ def render_copy_button(text_to_copy: str) -> None:
 
 def render_wizard_step_1() -> None:
     """Render Step 1: Content Input"""
+    st.markdown("Choose how you want to provide your content - either type keywords directly or paste a website URL to extract content automatically.")
     
     # Input method selection
     input_method = st.radio(
@@ -406,7 +407,6 @@ def render_wizard_step_2() -> None:
 
 def render_wizard_step_3() -> None:
     """Render Step 3: Generate & Results"""
-    st.markdown("### 🚀 Generate & Results")
     
     # Show summary
     render_settings_summary(st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_category", "Business"), st.session_state.get("wizard_count", 10))
