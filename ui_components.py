@@ -9,7 +9,7 @@ from typing import List, Tuple
 
 # Import functions needed for wizard steps
 from content_extractor import extract_content_from_url
-from hashtag_generator import get_enhanced_prompt, adjust_count_for_platform, generate_hashtags
+from hashtag_generator import get_enhanced_prompt, adjust_count_for_platform, generate_hashtags, generate_hashtags_with_exa
 from config import PLATFORM_CONFIG
 
 
@@ -213,22 +213,45 @@ def render_settings_summary(platform: str, category: str, count: int) -> None:
     """, unsafe_allow_html=True)
 
 
-def render_hashtag_results_summary(hashtag_count: int, platform: str, category: str) -> None:
-    """Render a success summary box for generated hashtags."""
-    st.markdown(f"""
-    <div style="
-        background: rgba(16,185,129,0.1);
-        border: 1px solid rgba(16,185,129,0.3);
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        text-align: center;
-    ">
-        <strong style="color: #10b981;">
-            📊 {hashtag_count} hashtags optimized for {platform} • {category} category
-        </strong>
-    </div>
-    """, unsafe_allow_html=True)
+def render_hashtag_results_summary(hashtag_count: int, platform: str, category: str, exa_insights: dict = None) -> None:
+    """Render a success summary box for generated hashtags with Exa insights."""
+    if exa_insights and exa_insights.get("success"):
+        confidence = exa_insights.get("confidence", 0) * 100
+        trending_count = exa_insights.get("trending_count", 0)
+        
+        st.markdown(f"""
+        <div style="
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        ">
+            <strong style="color: #10b981;">
+                📊 {hashtag_count} hashtags optimized for {platform} • {category} category
+            </strong>
+            <br>
+            <span style="color: #059669; font-size: 0.9rem;">
+                🎯 {confidence:.0f}% confidence • 🔥 {trending_count} trending hashtags found
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div style="
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        ">
+            <strong style="color: #10b981;">
+                📊 {hashtag_count} hashtags optimized for {platform} • {category} category
+            </strong>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def render_copy_button(text_to_copy: str) -> None:
@@ -424,23 +447,33 @@ def render_wizard_step_3() -> None:
             st.session_state["wizard_step"] = 2
             st.rerun()
         elif generate_clicked:
-            # Generate hashtags
+            # Generate hashtags with Exa search
             optimal_count = adjust_count_for_platform(st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_count", 10))
-            enhanced_prompt = get_enhanced_prompt(
-                st.session_state.get("wizard_content", ""), 
-                st.session_state.get("wizard_platform", "Instagram"), 
-                st.session_state.get("wizard_category", "Business"), 
-                optimal_count, 
-                st.session_state.get("wizard_source_type", "manual input")
-            )
             
-            with st.spinner(f"Crafting {optimal_count} {st.session_state.get('wizard_platform', 'Instagram')}-optimized hashtags for {st.session_state.get('wizard_category', 'Business')} content…"):
+            # Show enhanced loading message
+            with st.spinner(f"🔍 Analyzing trends and crafting {optimal_count} {st.session_state.get('wizard_platform', 'Instagram')}-optimized hashtags for {st.session_state.get('wizard_category', 'Business')} content…"):
                 try:
-                    tags = generate_hashtags(st.session_state.get("wizard_content", ""), optimal_count, enhanced_prompt)
+                    # Use Exa-enhanced generation
+                    tags, exa_insights = generate_hashtags_with_exa(
+                        st.session_state.get("wizard_content", ""), 
+                        st.session_state.get("wizard_platform", "Instagram"), 
+                        st.session_state.get("wizard_category", "Business"), 
+                        optimal_count, 
+                        st.session_state.get("wizard_source_type", "manual input")
+                    )
+                    
                     if tags:
                         st.session_state["generated_hashtags"] = tags
                         st.session_state["hashtags_text"] = " ".join(tags)
-                        st.success(f"✅ Generated {len(tags)} hashtags optimized for {st.session_state.get('wizard_platform', 'Instagram')} in {st.session_state.get('wizard_category', 'Business')} category")
+                        st.session_state.exa_insights = exa_insights
+                        
+                        # Show success message with confidence
+                        confidence = exa_insights.get("confidence", 0) * 100
+                        if exa_insights.get("success"):
+                            st.success(f"✅ Generated {len(tags)} hashtags with {confidence:.0f}% confidence using real-time data")
+                        else:
+                            st.success(f"✅ Generated {len(tags)} hashtags using AI creativity")
+                        
                         st.rerun()
                     else:
                         st.error("No hashtags returned. Try different content or check your API key.")
@@ -460,7 +493,8 @@ def render_wizard_step_3() -> None:
         current_hashtags = st.session_state.get("hashtags_text", one_line).split()
         hashtag_count = len([h for h in current_hashtags if h.startswith('#')])
         
-        render_hashtag_results_summary(hashtag_count, st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_category", "Business"))
+        exa_insights = st.session_state.get("exa_insights", {})
+        render_hashtag_results_summary(hashtag_count, st.session_state.get("wizard_platform", "Instagram"), st.session_state.get("wizard_category", "Business"), exa_insights)
         
         # Editable text area
         st.markdown("**Your hashtags (you can edit them):**")

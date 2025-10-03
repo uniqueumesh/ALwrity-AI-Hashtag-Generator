@@ -7,7 +7,13 @@ import os
 from typing import List
 import streamlit as st
 import google.generativeai as genai
+from dotenv import load_dotenv
 from config import PLATFORM_CONFIG, CATEGORY_KEYWORDS, ENHANCED_PROMPT
+from exa_service import get_exa_hashtags
+from enhanced_prompts import get_enhanced_prompt_with_exa_data, get_fallback_prompt
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def get_api_key() -> str:
@@ -164,3 +170,42 @@ def get_category_keywords(category: str) -> List[str]:
         List[str]: List of category-specific keywords
     """
     return CATEGORY_KEYWORDS.get(category, [])
+
+
+def generate_hashtags_with_exa(content: str, platform: str, category: str, num: int, source_type: str = "manual input") -> tuple[List[str], dict]:
+    """
+    Generate hashtags using Exa search data for enhanced relevance.
+    
+    Args:
+        content (str): User's content
+        platform (str): Target platform
+        category (str): Content category
+        num (int): Number of hashtags to generate
+        source_type (str): Type of content source
+        
+    Returns:
+        tuple: (generated_hashtags, exa_insights)
+    """
+    # Get Exa data
+    exa_data = get_exa_hashtags(content, platform, category, num)
+    
+    # Generate enhanced prompt
+    if exa_data.get("success"):
+        prompt = get_enhanced_prompt_with_exa_data(
+            content, platform, category, num, source_type, exa_data
+        )
+    else:
+        # Fallback to standard prompt
+        prompt = get_fallback_prompt(content, platform, category, num)
+    
+    # Generate hashtags using AI
+    try:
+        hashtags = generate_hashtags(content, num, prompt)
+        return hashtags, exa_data
+    except Exception as e:
+        # If AI generation fails, return Exa hashtags as fallback
+        if exa_data.get("success") and exa_data.get("hashtags"):
+            fallback_hashtags = exa_data["hashtags"][:num]
+            return fallback_hashtags, exa_data
+        else:
+            raise e
